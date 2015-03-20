@@ -1,0 +1,209 @@
+import scipy
+from numpy import *
+import random
+import time
+import hills
+
+#
+# Blurs quickly to the radius specified
+#
+
+def Gaussian_Blur( amatrix, radius ):
+
+    size = int( amatrix.size ** ( 0.5 ) )
+    kernel = hills.gaussian_kernel( size, size, radius )
+    blur = hills.apply_kernel( size, size, amatrix, kernel )
+    return blur
+
+
+#
+# Fills a matrix with random numbers
+#
+
+def Generate( amatrix, edge ):
+
+    size = int( amatrix.size ** ( 0.5 ) )
+    for x in range( edge, size-edge ):
+
+        for y in range( edge, size-edge ):
+
+            amatrix[x][y] = random.triangular( 0.0, 100.0, 5.0 )
+
+
+#
+# Cuts off any elements outside of the min and max
+#
+def Matrix_Crop(amatrix,minimum,maximum):
+
+    size = int( amatrix.size ** ( 0.5 ) )
+    for x in range( 0, size ):
+
+        for y in range( 0, size ):
+
+            amatrix[x][y] = max( minimum, min( maximum, amatrix[x][y] ) )
+
+
+#
+# Forces the numbers in a matrix to within set bounds
+#
+def Matrix_Scale(amatrix,minimum,maximum):
+        
+    size = int( amatrix.size ** ( 0.5 ) )
+    rs = Stats_Range( amatrix )
+    factor = ( maximum - minimum ) / ( rs[1] - rs[0] )
+    amatrix = ( amatrix - rs[0] ) * factor + minimum
+    return amatrix
+
+
+#
+# Finds the Largest and smallest element
+#
+def Stats_Range(amatrix):
+
+    mymatrix = amatrix.reshape(-1)
+    sort = mymatrix.argsort()
+    final = [mymatrix[sort[0]], mymatrix[sort[amatrix.size-1]]]
+    return final
+
+
+#
+# Doubles the dimensions of a matrix
+#
+def Matrix_Double(amatrix):
+
+    size = int( amatrix.size ** ( 0.5 ) )
+    b = zeros( ( size * 2, size * 2 ))
+    for x in range( 0, size ):
+    
+        for y in range( 0, size ):
+    
+            b[2*x  ][2*y  ] = amatrix[x][y]
+            b[2*x+1][2*y  ] = amatrix[x][y]
+            b[2*x  ][2*y+1] = amatrix[x][y]
+            b[2*x+1][2*y+1] = amatrix[x][y]
+    
+    return b
+
+
+#
+# Lowers points far from the middle
+#
+def Dome(amatrix):
+
+    size = int( amatrix.size ** ( 0.5 ) )
+    modified = 0
+    rng = Stats_Range(amatrix)
+    for x in range( 0, size ):
+    
+        for y in range( 0, size ):
+        
+            distance = sqrt( 2.0 ) / size * sqrt(
+            
+                ( x - ( size - 0.7 ) / 2 ) ** 2 +
+                ( y - ( size - 0.7 ) / 2 ) ** 2 )
+            
+            amatrix[x][y] /= max( distance, 0.40 ) * 50
+            amatrix[x][y] /= max( distance, 0.45 ) * 150
+            amatrix[x][y] /= max( distance, 0.50 ) * 300
+            amatrix[x][y] /= max( distance, 0.55 ) * 300
+    
+    return Matrix_Scale( amatrix, rng[0], rng[1] )
+    
+
+#
+# Adds sparse dots to a matrix
+#
+def Sparse_Hills( amatrix, number, strength ):
+
+    size = int( amatrix.size ** ( 0.5 ) )
+    for num in range( 0, number ):
+    
+        amatrix[random.randint( size / 8, size * 7 / 8 )][random.randint( size / 8, size * 7 / 8 )]=strength
+
+
+#
+# Main function
+#
+def main(scale):
+
+    #
+    # Timekeeping
+    #           
+    wall = time.clock()
+    wall2 = wall
+
+
+    #
+    # Large Boring Hills
+    #
+    a = zeros(( scale , scale ))
+    Generate( a, 1 )
+    a = Matrix_Double( a )
+    a = Matrix_Double( a )
+    a = Gaussian_Blur( a, 2 )
+    a = Matrix_Double( a )
+    a = Matrix_Double( a )
+
+    print "Done Large Boring Hills",(time.clock()-wall)
+    wall = time.clock()
+
+
+    #
+    # Little Boring Hills
+    #
+    b = zeros(( scale*4 , scale*4 ))
+    Generate( b, 3 )
+    b = Matrix_Double( b )
+    b = Gaussian_Blur( b, 2 )
+    b = Matrix_Double( b )
+
+    print "Done Little Boring Hills",(time.clock()-wall)
+    wall = time.clock()
+
+
+    #
+    # Extra Noise
+    #
+    c = zeros(( scale*16 , scale*16 ))
+    Generate( c, 11 )
+
+    print "Done Adding Noise",(time.clock()-wall)
+    wall = time.clock()
+
+
+    #
+    # More Hills
+    #
+    d = zeros(( scale*16 , scale*16 ))
+    Sparse_Hills(d , scale/2 , 2000 )
+    d = Gaussian_Blur( d, 32 )
+    d = Matrix_Scale( d, 0, 100 )
+
+    print "Done Adding Hills",(time.clock()-wall)
+    wall = time.clock()
+
+    #
+    # Finishing Up
+    #
+    k = 3 * a + 2 * b + c + 5 * d
+    #scipy.misc.imsave( 'example1.png', Gaussian_Blur( k , 3 ) )
+    Dome(k)
+    k = Gaussian_Blur( k, 2 )
+
+    print "Done Blurring and Doming",(time.clock()-wall)
+    wall = time.clock()
+
+    scipy.misc.imsave( 'example_%d.png' % time.clock(), k )
+    print "Done Everything",(time.clock()-wall2)
+
+
+main(12)
+main(12)
+main(16)
+main(16)
+main(16)
+main(20)
+main(20)
+main(20)
+
+
